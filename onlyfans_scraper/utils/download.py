@@ -106,7 +106,7 @@ async def download(client,url,filename,path,media_type,model_id,file_size_limit,
                 with set_directory(pathlib.Path(pathlib.Path(__file__).parents[2],"tempmedia")):
                     temp=f"{filename}.{content_type}"
                     pathlib.Path(temp).unlink(missing_ok=True)
-                    with open(path_to_file, 'wb') as f:
+                    with open(temp, 'wb') as f:
                         with tqdm(desc=temp ,total=total, unit_scale=True, unit_divisor=1024, unit='B', leave=False) as bar:
                             num_bytes_downloaded = r.num_bytes_downloaded
                             async for chunk in r.aiter_bytes(chunk_size=1024):
@@ -114,6 +114,8 @@ async def download(client,url,filename,path,media_type,model_id,file_size_limit,
                                 bar.update(
                                     r.num_bytes_downloaded - num_bytes_downloaded)
                                 num_bytes_downloaded = r.num_bytes_downloaded
+                 
+                    
                     if pathlib.Path(temp).exists() and(total-pathlib.Path(temp).stat().st_size<=1000):
                         shutil.move(temp,path_to_file)
                         return media_type,total

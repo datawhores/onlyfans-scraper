@@ -19,7 +19,7 @@ from ..constants import mainPromptChoices, usernameOrListChoices, profilesPrompt
 
 def main_prompt() -> int:
     main_prompt_choices = [*mainPromptChoices]
-    main_prompt_choices.insert(3, Separator())
+    main_prompt_choices.insert(4, Separator())
 
     name = 'action'
 
@@ -75,7 +75,7 @@ def username_prompt() -> str:
         {
             'type': 'input',
             'name': name,
-            'message': 'Enter a model\'s username:'
+            'message': 'Enter a comma seperated list of model\'s usernames:'
         }
     ]
 
@@ -315,3 +315,15 @@ def config_prompt(config) -> dict:
     answers.update({'save_location': answers.get(
         'save_location').strip('\"')})
     return answers
+def reset_username_prompt() -> bool:
+    name = 'reset username'
+    questions = [
+        {
+            'type': 'confirm',
+            'name': name,
+            'message': "Do you want to reset username option",
+        }
+    ]
+
+    answer = prompt(questions)
+    return answer[name]

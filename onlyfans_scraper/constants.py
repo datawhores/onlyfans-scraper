@@ -51,13 +51,15 @@ donateEP = "https://www.buymeacoffee.com/taux1c"
 purchased_contentEP = "https://onlyfans.com/api2/v2/posts/paid?limit=10&skip_users=all&format=infinite&offset={}"
 
 mainPromptChoices = {
-    'Download content from a user': 0,
-    'Like all of a user\'s posts': 1,
-    'Unlike all of a user\'s posts': 2,
-    'Migrate an old database': 3,
-    'Edit `auth.json` file': 4,
-    'Profiles': 5,
-    'Download Paid Content': 6
+    'Download profile content from a user': 0,
+    'Download paid content from a user': 1,
+    'Like all of a user\'s posts': 2,
+    'Unlike all of a user\'s posts': 3,
+    'Migrate an old database': 4,
+    'Edit `auth.json` file': 5,
+    'Edit `config.json` file': 6,
+    'Edit Profile': 7,
+
 }
 usernameOrListChoices = {
     'Print a list of my subscriptions': 0,

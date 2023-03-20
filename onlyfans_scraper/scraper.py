@@ -22,6 +22,7 @@ from contextlib import contextmanager
 import threading
 import queue
 import functools
+from itertools import chain
 
 from .constants import donateEP
 from .api import init, highlights, me, messages, posts, profile, subscriptions, paid
@@ -109,9 +110,9 @@ def process_areas_all(headers, username, model_id) -> list:
 
 
 def process_areas(headers, username, model_id,selected=None) -> list:
-    result_areas_prompt = (selected or prompts.areas_prompt()).capitalize()
+    result_areas_prompt = (selected or prompts.areas_prompt()[0]).capitalize()
 
-    if 'All' in result_areas_prompt:
+    if result_areas_prompt=="All":
         combined_urls = process_areas_all(headers, username, model_id)
 
     else:
@@ -123,17 +124,17 @@ def process_areas(headers, username, model_id,selected=None) -> list:
 
         profile_urls = process_profile(headers, username)
 
-        if 'Timeline' in result_areas_prompt:
+        if result_areas_prompt=='Timeline':
             pinned_posts_urls = process_pinned_posts(headers, model_id)
             timeline_posts_urls = process_timeline_posts(headers, model_id)
 
-        if 'Archived' in result_areas_prompt:
+        if  result_areas_prompt=='Archived':
             archived_posts_urls = process_archived_posts(headers, model_id)
 
-        if 'Highlights' in result_areas_prompt:
+        if result_areas_prompt=='Highlights':
             highlights_urls = process_highlights(headers, model_id)
 
-        if 'Messages' in result_areas_prompt:
+        if result_areas_prompt=='Messages':
             messages_urls = process_messages(headers, model_id)
 
         combined_urls = profile_urls + pinned_posts_urls + timeline_posts_urls + \
@@ -157,19 +158,23 @@ def get_usernames(parsed_subscriptions: list) -> list:
 def get_model(parsed_subscriptions: list) -> tuple:
     """
     Prints user's subscriptions to console and accepts input from user corresponding 
-    to the model whose content they would like to scrape.
+    to the model(s) whose content they would like to scrape.
     """
     subscriptions.print_subscriptions(parsed_subscriptions)
 
-    print('\nEnter the number next to the user whose content you would like to download:')
+    print('\nEnter the numbers of the models you want\nValid inputs include single numbers [1] or ranges [1-20]\nUse commas to seperate inputs')
     while True:
         try:
-            num = int(input('> '))
-            return parsed_subscriptions[num - 1]
+            return list(map(lambda x:parsed_subscriptions[x - 1][0],get_model_inputsplit(input('> '))))
         except ValueError:
             print("Incorrect value. Please enter an actual number.")
         except IndexError:
             print("Value out of range. Please pick a number that's in range")
+def get_model_inputsplit(commaString):
+    def hyphenRange(hyphenString):
+        x = [int(x) for x in hyphenString.split('-')]
+        return range(x[0], x[-1]+1)
+    return chain(*[hyphenRange(r) for r in commaString.split(',')])
 
 
 def get_models(headers, subscribe_count) -> list:
@@ -198,46 +203,34 @@ def process_prompts():
     #download
     if result_main_prompt == 0:
         process_post()
-    # like a user's posts
+
     elif result_main_prompt == 1:
-        usernames=getselected_usernames(headers)
-        for username in usernames:
-            model_id = profile.get_id(headers, username)
-            posts = like.get_posts(headers, model_id)
-            unfavorited_posts = like.filter_for_unfavorited(posts)
-            post_ids = like.get_post_ids(unfavorited_posts)
-            like.like(headers, model_id, username, post_ids)
-    # Unlike a user's posts
+        process_paid()
+
+    # like a user's posts
     elif result_main_prompt == 2:
-        usernames=getselected_usernames(headers)
-        for username in usernames:
-            model_id = profile.get_id(headers, username)
-            posts = like.get_posts(headers, model_id)
-            favorited_posts = like.filter_for_favorited(posts)
-            post_ids = like.get_post_ids(favorited_posts)
-            like.unlike(headers, model_id, username, post_ids)
-    #need to fix 
+        process_like()
+    # Unlike a user's posts
     elif result_main_prompt == 3:
+        process_unlike()
+
+    elif result_main_prompt == 4:
         # Migrate from old database
         path, username = prompts.database_prompt()
         model_id = profile.get_id(headers, username)
         do_database_migration(path, model_id)
-        loop()
-
-    elif result_main_prompt == 4:
-        # Edit `auth.json` file
-        auth.edit_auth()
-
-        loop()
+     
 
     elif result_main_prompt == 5:
+        # Edit `auth.json` file
+        auth.edit_auth()
+    
+    elif result_main_prompt == 6:
         # Edit `config.json` file
         config.edit_config()
 
-        loop()
-    elif result_main_prompt == 6:
-        process_paid()
-
+      
+ 
     elif result_main_prompt == 7:
         # Display  `Profiles` menu
         result_profiles_prompt = prompts.profiles_prompt()
@@ -246,7 +239,7 @@ def process_prompts():
             # Change profiles
             profiles.change_profile()
 
-        if result_profiles_prompt == 1:
+        elif result_profiles_prompt == 1:
             # Edit a profile
             profiles_ = profiles.get_profiles()
 
@@ -270,8 +263,9 @@ def process_prompts():
         elif result_profiles_prompt == 4:
             # View profiles
             profiles.print_profiles()
-
-        loop()
+    if args.username and prompts.reset_username_prompt()==True:
+        args.username=None
+    loop()
 def process_paid():
     profiles.print_current_profile()
     headers = auth.make_headers(auth.read_auth())
@@ -297,11 +291,11 @@ def process_post():
     profiles.print_current_profile()
     headers = auth.make_headers(auth.read_auth())
     init.print_sign_status(headers)
-    usernames=getselected_usernames(headers)
+    usernames=getselected_usernames()
     for username in usernames:
         try:
             model_id = profile.get_id(headers, username)
-            combined_urls=process_areas(headers, username, model_id,selected=args.type)
+            combined_urls=process_areas(headers, username, model_id,selected=args.posts)
             asyncio.run(download.process_dicts(
             headers,
             username,
@@ -311,29 +305,47 @@ def process_post():
             ))
         except Exception as e:
             print("run failed with exception: ", e)
-    if args.paid:
-        all_paid_content = paid.scrape_paid()
-        for username in usernames:
+    
+
+def process_like():
+    profiles.print_current_profile()
+    headers = auth.make_headers(auth.read_auth())
+    init.print_sign_status(headers)
+    usernames=getselected_usernames()
+    for username in usernames:
             model_id = profile.get_id(headers, username)
-            paid_content=paid.parse_paid(all_paid_content,model_id)
-            paid.download_paid(paid_content,username,args.dupe)
-            
+            posts = like.get_posts(headers, model_id)
+            unfavorited_posts = like.filter_for_unfavorited(posts)
+            post_ids = like.get_post_ids(unfavorited_posts)
+            like.like(headers, model_id, username, post_ids)
 
-
-
+def process_unlike():
+    profiles.print_current_profile()
+    headers = auth.make_headers(auth.read_auth())
+    init.print_sign_status(headers)
+    usernames=getselected_usernames()
+    for username in usernames:
+            model_id = profile.get_id(headers, username)
+            posts = like.get_posts(headers, model_id)
+            favorited_posts = like.filter_for_favorited(posts)
+            post_ids = like.get_post_ids(favorited_posts)
+            like.unlike(headers, model_id, username, post_ids)
 
 @contextmanager
 def suppress_stdout():
     with open(os.devnull, "w") as devnull:
         old_stdout = sys.stdout
+        old_stderr=sys.stderr
         sys.stdout = devnull
+        sys.stderr = devnull
         try:  
             yield
         finally:
             sys.stdout = old_stdout
+            sys.stderr = old_stderr
 
 def set_schedule(command,*params,**kwparams):
-    schedule.every(10).seconds.do(jobqueue.put,functools.partial(command,*params,**kwparams))
+    schedule.every(args.daemon).minutes.do(jobqueue.put,functools.partial(command,*params,**kwparams))
     while True:
         schedule.run_pending()
         time.sleep(30)
@@ -341,10 +353,19 @@ def set_schedule(command,*params,**kwparams):
 
 ## run script once or on schedule based on args
 def run(command,*params,**kwparams):
-    # run at least once
+    # get usernames prior to potentially supressing output
+    getselected_usernames()
+    print(f"starting script daemon:{args.daemon!=None} silent-mode:{args.silent}")    
+    if args.silent:
+        with suppress_stdout():
+            run_helper(command,*params,**kwparams)
+    else:
+        run_helper(command,*params,**kwparams)
+    print("script finished")
+
+def run_helper(command,*params,**kwparams):   
     command(*params,**kwparams)
     if args.daemon:
-        print("starting daemon")    
         global jobqueue
         jobqueue=queue.Queue()
         worker_thread = threading.Thread(target=set_schedule,args=[command,*params],kwargs=kwparams)
@@ -358,32 +379,32 @@ def run(command,*params,**kwparams):
        
 
 def getselected_usernames():
+    #username list will be retrived once per run
     headers = auth.make_headers(auth.read_auth())
-    if args.username:
-        None
-
-    elif args.all:
+    if args.username=="!all":
         subscribe_count = process_me(headers)
         parsed_subscriptions = get_models(headers, subscribe_count)
         args.username=get_usernames(parsed_subscriptions)
- 
+    
     #manually select usernames
-    else:
+    elif args.username==None:
         result_username_or_list_prompt = prompts.username_or_list_prompt()
         # Print a list of users:
         if result_username_or_list_prompt == 0:
             subscribe_count = process_me(headers)
             parsed_subscriptions = get_models(headers, subscribe_count)
-            username, *_ = get_model(parsed_subscriptions)
-            args.username=[username]
+            usernames= get_model(parsed_subscriptions)
+
+            args.username=usernames
         elif result_username_or_list_prompt == 1:
-            args.username=[prompts.username_prompt()]
+            args.username=prompts.username_prompt().split(",")
         #check if we should get all users
         elif prompts.verify_all_users_username_or_list_prompt():
             subscribe_count = process_me(headers)
             parsed_subscriptions = get_models(headers, subscribe_count)
-            args.username=[get_usernames(parsed_subscriptions)]
-    return args.username
+            args.username=get_usernames(parsed_subscriptions)
+    #remove dupes
+    return list(set(args.username))
 
 
 
@@ -406,58 +427,41 @@ def main():
 
 
     #share the args
-    parent_parser = argparse.ArgumentParser(add_help=False)                                         
-    parent_parser.add_argument(
-        '-u', '--username', help="Download content from a user or list of users (name,name2)",type=lambda x: x.strip().split(',')
+    parser = argparse.ArgumentParser(add_help=False)                                         
+    parser.add_argument(
+        '-u', '--username', help="select which username to process (name,name2)\nSet to !all for all users",type=lambda x: x.strip().split(',')
     )
-
-    parent_parser.add_argument(
-        '-a', '--all', help='scrape the content of all users', action='store_true')
-    parent_parser.add_argument(
-        '-d', '--daemon', help='This will run the program in the background and scrape everything from everyone. It will run untill manually killed.', action='store_true'
+    parser.add_argument(
+        '-d', '--daemon', help='run script in the background\nSet value to minimum minutes between script runs\nOverdue runs will run as soon as previous run finishes', type=int,default=None
     )
-    parent_parser.add_argument(
+    parser.add_argument(
         '-s', '--silent', help = 'Run in silent mode', action = 'store_true',default=False
     )
-    parent_parser.add_argument("-e","--dupe",action="store_true",default=False,help="download previously downloaded")
-    subparsers = parser.add_subparsers(help='select which mode you want to run',dest="command",required=True)
-    post = subparsers.add_parser('posts', help='scrape content from posts',parents=[parent_parser])
-    post.add_argument(
-        '-t', '--type', help = 'which type of posts to scrape',default=None,required=False,type = str.lower,choices=["highlights","all","archived","messages","timeline"]
+    parser.add_argument("-e","--dupe",action="store_true",default=False,help="download previously downloaded")
+    parser.add_argument(
+        '-o', '--posts', help = 'scrape all posts with this type',default=None,required=False,type = str.lower,choices=["highlights","all","archived","messages","timeline"]
     )
-    post.add_argument("-p","--paid",action="store_true",default=False,help="download paid post")
+    parser.add_argument("-p","--paid",action="store_true",default=False,help="download paid post")
+    parser.add_argument("-a","--action",default=None,help="perform like or unlike action on each post",choices=["like","unlike"])
 
-    
-  
-    paid= subparsers.add_parser('paid', help='scrape only paid content',parents=[parent_parser])
-    likes = subparsers.add_parser('like', help='manipulate likes',parents=[parent_parser])
-    likes.add_argument("-t","--action",help="what batch action to take",type = str.lower,choices=["like","unlike"],required=True)
-    edit = subparsers.add_parser('edit', help='edit',parents=[parent_parser])
-    manual = subparsers.add_parser('manual', help='do stuff with prompts',parents=[parent_parser])
-
-
-
- 
-
-
-
+   
+   
     args = parser.parse_args()
-    if args.command=="edit":
-        pass
-    elif args.command=="posts":
-        
-        usernames=getselected_usernames(args)
-        process_post(args,usernames)   
-    elif args.command=="paid":
+    if len(list(filter(lambda x:x!=None and x!=False,[args.action,args.paid,args.posts])))==0:
+        process_prompts()
+        sys.exit(0)
+    
+
+   #process user selected option
+
+    if args.posts: 
+        run(process_post)        
+    if args.paid:
         run(process_paid)
-    elif args.command=="likes":
-        pass
-        sys.exit()
-    elif args.command=="manual":
-        try:
-            process_prompts(args)
-        except KeyboardInterrupt:
-            sys.exit(1)
+    if args.action=="like":
+        run(process_like)
+    if args.action=="unlike":
+        run(process_unlike)  
 
 
 if __name__ == '__main__':

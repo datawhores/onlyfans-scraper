@@ -70,7 +70,8 @@ def scrape_archived_posts(headers, model_id, timestamp=0) -> list:
 
 
 def parse_posts(posts: list):
-    media = [post['media'] for post in posts if post.get('media')]
+    data = list(filter( lambda x:x.get('media')!=None,posts))
+
     urls = [
-        (i['info']['source']['source'], i['createdAt'], i['id'], i['type']) for m in media for i in m if i['canView']]
+        (i['info']['source']['source'], i['createdAt'], i['id'], i['type'],m["text"],"posts",count+1) for m in data for count,i in enumerate(m["media"]) if i['canView']]
     return urls

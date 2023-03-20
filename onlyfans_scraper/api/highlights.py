@@ -90,7 +90,8 @@ async def scrape_story(headers, story_id: int) -> list:
 
 
 def parse_stories(stories: list):
-    media = [story['media'] for story in stories]
-    urls = [(i['files']['source']['url'], i['createdAt'], i['id'], i['type'])
-            for m in media for i in m if i['canView']]
+
+    
+    urls = [(m['files']['source']['url'], m.get("createdAt") or story.get("createdAt") , m['id'], m['type'],m.get("text"),"stories",count+1)
+            for story in stories for count,m in enumerate(story["media"]) if m['canView']]
     return urls

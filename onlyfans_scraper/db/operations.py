@@ -22,7 +22,7 @@ def create_database(model_id, path=None):
 
     path = path or pathlib.Path.home() / configPath / profile / databaseFile
 
-    with contextlib.closing(sqlite3.connect(path)) as conn:
+    with contextlib.closing(sqlite3.connect(path,check_same_thread=False)) as conn:
         with contextlib.closing(conn.cursor()) as cur:
             try:
                 model_sql = f"""
@@ -41,7 +41,7 @@ def write_from_data(data: tuple, model_id):
 
     database_path = pathlib.Path.home() / configPath / profile / databaseFile
 
-    with contextlib.closing(sqlite3.connect(database_path)) as conn:
+    with contextlib.closing(sqlite3.connect(database_path,check_same_thread=False)) as conn:
         with contextlib.closing(conn.cursor()) as cur:
             model_insert_sql = f"""
             INSERT INTO '{model_id}'(
@@ -57,7 +57,7 @@ def read_foreign_database(path) -> list:
 
     database_results = []
     for file in database_files:
-        with contextlib.closing(sqlite3.connect(file)) as conn:
+        with contextlib.closing(sqlite3.connect(file,check_same_thread=False)) as conn:
             with contextlib.closing(conn.cursor()) as cur:
                 read_sql = """SELECT media_id, filename FROM medias"""
                 cur.execute(read_sql)
@@ -81,7 +81,7 @@ def write_from_foreign_database(results: list, model_id):
         results, media_ids)
 
     # Insert results into our database:
-    with contextlib.closing(sqlite3.connect(database_path)) as conn:
+    with contextlib.closing(sqlite3.connect(database_path,check_same_thread=False)) as conn:
         with contextlib.closing(conn.cursor()) as cur:
             model_insert_sql = f"""
             INSERT INTO '{model_id}'(
@@ -99,7 +99,7 @@ def get_media_ids(model_id) -> list:
 
     database_path = pathlib.Path.home() / configPath / profile / databaseFile
 
-    with contextlib.closing(sqlite3.connect(database_path)) as conn:
+    with contextlib.closing(sqlite3.connect(database_path,check_same_thread=False)) as conn:
         with contextlib.closing(conn.cursor()) as cur:
             media_ids_sql = f"""SELECT media_id FROM '{model_id}'"""
             cur.execute(media_ids_sql)

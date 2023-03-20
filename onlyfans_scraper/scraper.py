@@ -15,7 +15,13 @@ import sys
 import platform
 from random import randint, choice
 from time import sleep
+import time
 from datetime import datetime, timedelta
+import schedule
+from contextlib import contextmanager
+import threading
+import queue
+import functools
 
 from .constants import donateEP
 from .api import init, highlights, me, messages, posts, profile, subscriptions, paid
@@ -27,15 +33,16 @@ from revolution import Revolution
 from .utils.nap import nap_or_sleep
 
 
+
+
 # @need_revolution("Getting messages...")
 @Revolution(desc='Getting messages...')
 def process_messages(headers, model_id):
     messages_ = messages.scrape_messages(headers, model_id)
-
+    output=[]
     if messages_:
-        messages_urls = messages.parse_messages(messages_, model_id)
-        return messages_urls
-    return []
+        [output.extend(messages.parse_messages([ele],model_id)) for ele in messages_]       
+    return output
 
 # @need_revolution("Getting highlights...")
 @Revolution(desc='Getting highlights...')
@@ -54,7 +61,6 @@ def process_highlights(headers, model_id):
 @Revolution(desc='Getting archived media...')
 def process_archived_posts(headers, model_id):
     archived_posts = posts.scrape_archived_posts(headers, model_id)
-
     if archived_posts:
         archived_posts_urls = posts.parse_posts(archived_posts)
         return archived_posts_urls
@@ -64,17 +70,16 @@ def process_archived_posts(headers, model_id):
 @Revolution(desc='Getting timeline media...')
 def process_timeline_posts(headers, model_id):
     timeline_posts = posts.scrape_timeline_posts(headers, model_id)
-
     if timeline_posts:
         timeline_posts_urls = posts.parse_posts(timeline_posts)
         return timeline_posts_urls
     return []
 
+
 # @need_revolution("Getting pinned media...")
 @Revolution(desc='Getting pinned media...')
 def process_pinned_posts(headers, model_id):
     pinned_posts = posts.scrape_pinned_posts(headers, model_id)
-
     if pinned_posts:
         pinned_posts_urls = posts.parse_posts(pinned_posts)
         return pinned_posts_urls
@@ -89,22 +94,22 @@ def process_profile(headers, username) -> list:
 
 
 def process_areas_all(headers, username, model_id) -> list:
-    profile_urls = process_profile(headers, username)
+    profile_tuple = process_profile(headers, username)
 
-    pinned_posts_urls = process_pinned_posts(headers, model_id)
-    timeline_posts_urls = process_timeline_posts(headers, model_id)
-    archived_posts_urls = process_archived_posts(headers, model_id)
-    highlights_urls = process_highlights(headers, model_id)
-    messages_urls = process_messages(headers, model_id)
+    pinned_posts_tuple = process_pinned_posts(headers, model_id)
+    timeline_posts_tuple = process_timeline_posts(headers, model_id)
+    archived_posts_tuple = process_archived_posts(headers, model_id)
+    highlights_tuple= process_highlights(headers, model_id)
+    messages_tuple = process_messages(headers, model_id)
 
-    combined_urls = profile_urls + pinned_posts_urls + timeline_posts_urls + \
-        archived_posts_urls + highlights_urls + messages_urls
+    combined_urls = profile_tuple + pinned_posts_tuple + timeline_posts_tuple + \
+        archived_posts_tuple + highlights_tuple + messages_tuple
 
     return combined_urls
 
 
-def process_areas(headers, username, model_id) -> list:
-    result_areas_prompt = prompts.areas_prompt()
+def process_areas(headers, username, model_id,selected=None) -> list:
+    result_areas_prompt = (selected or prompts.areas_prompt()).capitalize()
 
     if 'All' in result_areas_prompt:
         combined_urls = process_areas_all(headers, username, model_id)
@@ -137,20 +142,6 @@ def process_areas(headers, username, model_id) -> list:
     return combined_urls
 
 
-def do_download_content(headers, username, model_id, ignore_prompt=False):
-    # If we should ignore the process_areas prompt:
-    if ignore_prompt:
-        combined_urls = process_areas_all(headers, username, model_id)
-    # Otherwise, display the prompt to the user
-    else:
-        combined_urls = process_areas(headers, username, model_id)
-    # If we shouldn't ignore the areas prompt:
-
-    asyncio.run(download.process_urls(
-        headers,
-        username,
-        model_id,
-        combined_urls))
 
 
 def do_database_migration(path, model_id):
@@ -202,75 +193,35 @@ def process_me(headers):
 
 def process_prompts():
     loop = process_prompts
-
-    profiles.print_current_profile()
-    headers = auth.make_headers(auth.read_auth())
-    init.print_sign_status(headers)
-
     result_main_prompt = prompts.main_prompt()
-
+    headers = auth.make_headers(auth.read_auth())
+    #download
     if result_main_prompt == 0:
-        # Download content from user
-        result_username_or_list_prompt = prompts.username_or_list_prompt()
-
-        # Print a list of users:
-        if result_username_or_list_prompt == 0:
-            subscribe_count = process_me(headers)
-            parsed_subscriptions = get_models(headers, subscribe_count)
-            username, model_id, *_ = get_model(parsed_subscriptions)
-
-            do_download_content(headers, username, model_id)
-
-        # Ask for a username to be entered:
-        elif result_username_or_list_prompt == 1:
-            username = prompts.username_prompt()
-            model_id = profile.get_id(headers, username)
-
-            do_download_content(headers, username, model_id)
-
-        else:
-            # Ask if we should scrape all users
-            result_verify_all_users = prompts.verify_all_users_username_or_list_prompt()
-            # If we should, then:
-            if result_verify_all_users:
-                subscribe_count = process_me(headers)
-                parsed_subscriptions = get_models(headers, subscribe_count)
-                usernames = get_usernames(parsed_subscriptions)
-
-                for username in usernames:
-                    try:
-                        model_id = profile.get_id(headers, username)
-                        do_download_content(
-                            headers, username, model_id, ignore_prompt=True)
-                    except Exception as e:
-                        print(f"There was an error with profile {username}.\nWe encountered the following exception: \n\n{e}")
-
+        process_post()
+    # like a user's posts
     elif result_main_prompt == 1:
-        # Like a user's posts
-        username = prompts.username_prompt()
-        model_id = profile.get_id(headers, username)
-
-        posts = like.get_posts(headers, model_id)
-        unfavorited_posts = like.filter_for_unfavorited(posts)
-        post_ids = like.get_post_ids(unfavorited_posts)
-        like.like(headers, model_id, username, post_ids)
-
+        usernames=getselected_usernames(headers)
+        for username in usernames:
+            model_id = profile.get_id(headers, username)
+            posts = like.get_posts(headers, model_id)
+            unfavorited_posts = like.filter_for_unfavorited(posts)
+            post_ids = like.get_post_ids(unfavorited_posts)
+            like.like(headers, model_id, username, post_ids)
+    # Unlike a user's posts
     elif result_main_prompt == 2:
-        # Unlike a user's posts
-        username = prompts.username_prompt()
-        model_id = profile.get_id(headers, username)
-
-        posts = like.get_posts(headers, model_id)
-        favorited_posts = like.filter_for_favorited(posts)
-        post_ids = like.get_post_ids(favorited_posts)
-        like.unlike(headers, model_id, username, post_ids)
-
+        usernames=getselected_usernames(headers)
+        for username in usernames:
+            model_id = profile.get_id(headers, username)
+            posts = like.get_posts(headers, model_id)
+            favorited_posts = like.filter_for_favorited(posts)
+            post_ids = like.get_post_ids(favorited_posts)
+            like.unlike(headers, model_id, username, post_ids)
+    #need to fix 
     elif result_main_prompt == 3:
         # Migrate from old database
         path, username = prompts.database_prompt()
         model_id = profile.get_id(headers, username)
         do_database_migration(path, model_id)
-
         loop()
 
     elif result_main_prompt == 4:
@@ -285,8 +236,7 @@ def process_prompts():
 
         loop()
     elif result_main_prompt == 6:
-        paid_content = paid.scrape_paid()
-        paid.download_paid(paid_content)
+        process_paid()
 
     elif result_main_prompt == 7:
         # Display  `Profiles` menu
@@ -322,99 +272,192 @@ def process_prompts():
             profiles.print_profiles()
 
         loop()
-
-def download_user(username):
+def process_paid():
+    profiles.print_current_profile()
     headers = auth.make_headers(auth.read_auth())
-    do_download_content(headers, username, profile.get_id(headers, username), ignore_prompt=True)
-
-
-
-def silent_run():
-    headers = auth.make_headers(auth.read_auth())
-
-    try:
-        resp = me.scrape_user(headers)
-    except Exception as e:
-        print("Silent run failed with exception: ", e)
-        return
-    subscribe_count = process_me(headers)
-    parsed_subscriptions = get_models(headers, subscribe_count)
-    usernames = get_usernames(parsed_subscriptions)
-    paid_content = paid.scrape_paid()
-    paid.download_paid(paid_content)
-
+    init.print_sign_status(headers)
+    all_paid_content = paid.scrape_paid()
+    usernames=getselected_usernames()
     for username in usernames:
         try:
             model_id = profile.get_id(headers, username)
-            do_download_content(
-                headers, username, model_id, ignore_prompt=True)
+            paid_content=paid.parse_paid(all_paid_content,model_id)
+            asyncio.run(paid.process_dicts(
+            headers,
+            username,
+            model_id,
+            paid_content,
+            forced=args.dupe
+            ))
         except Exception as e:
-            print("Silent run failed with exception: ", e)
+            print("run failed with exception: ", e)
 
 
-def daemon():
-
-    while True:
-        # Trying vs running allows the daemon to recover from errors and try again later.
+def process_post():
+    profiles.print_current_profile()
+    headers = auth.make_headers(auth.read_auth())
+    init.print_sign_status(headers)
+    usernames=getselected_usernames(headers)
+    for username in usernames:
         try:
-            silent_run()
+            model_id = profile.get_id(headers, username)
+            combined_urls=process_areas(headers, username, model_id,selected=args.type)
+            asyncio.run(download.process_dicts(
+            headers,
+            username,
+            model_id,
+            combined_urls,
+            forced=args.dupe
+            ))
         except Exception as e:
-            print("Daemon failed with exception: ", e)
+            print("run failed with exception: ", e)
+    if args.paid:
+        all_paid_content = paid.scrape_paid()
+        for username in usernames:
+            model_id = profile.get_id(headers, username)
+            paid_content=paid.parse_paid(all_paid_content,model_id)
+            paid.download_paid(paid_content,username,args.dupe)
+            
+
+
+
+
+@contextmanager
+def suppress_stdout():
+    with open(os.devnull, "w") as devnull:
+        old_stdout = sys.stdout
+        sys.stdout = devnull
+        try:  
+            yield
         finally:
-            s = nap_or_sleep()
-            sleep(s)
+            sys.stdout = old_stdout
+
+def set_schedule(command,*params,**kwparams):
+    schedule.every(10).seconds.do(jobqueue.put,functools.partial(command,*params,**kwparams))
+    while True:
+        schedule.run_pending()
+        time.sleep(30)
+
+
+## run script once or on schedule based on args
+def run(command,*params,**kwparams):
+    # run at least once
+    command(*params,**kwparams)
+    if args.daemon:
+        print("starting daemon")    
+        global jobqueue
+        jobqueue=queue.Queue()
+        worker_thread = threading.Thread(target=set_schedule,args=[command,*params],kwargs=kwparams)
+        worker_thread.start()
+        while True:
+            job_func = jobqueue.get()
+            job_func()
+            jobqueue.task_done()
+                
+      
+       
+
+def getselected_usernames():
+    headers = auth.make_headers(auth.read_auth())
+    if args.username:
+        None
+
+    elif args.all:
+        subscribe_count = process_me(headers)
+        parsed_subscriptions = get_models(headers, subscribe_count)
+        args.username=[get_usernames(parsed_subscriptions)]
+ 
+    #manually select usernames
+    else:
+        result_username_or_list_prompt = prompts.username_or_list_prompt()
+        # Print a list of users:
+        if result_username_or_list_prompt == 0:
+            subscribe_count = process_me(headers)
+            parsed_subscriptions = get_models(headers, subscribe_count)
+            username, *_ = get_model(parsed_subscriptions)
+            args.username=[username]
+        elif result_username_or_list_prompt == 1:
+            args.username=[prompts.username_prompt()]
+        #check if we should get all users
+        elif prompts.verify_all_users_username_or_list_prompt():
+            subscribe_count = process_me(headers)
+            parsed_subscriptions = get_models(headers, subscribe_count)
+            args.username=[get_usernames(parsed_subscriptions)]
+    return args.username
+
+
+
 
 
 
 
 def main():
+    global args
     if platform.system == 'Windows':
         os.system('color')
-    try:
-        webbrowser.open(donateEP)
-    except:
-        pass
+    # try:
+    #     webbrowser.open(donateEP)
+    # except:
+    #     pass
 
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-e', '--edit', help='view or edit your current auth', action='store_true')
-    parser.add_argument(
-        '-u', '--username', help="Download content from a user or list of users (name,name2)"
+    #This needs to be global
+
+
+    #share the args
+    parent_parser = argparse.ArgumentParser(add_help=False)                                         
+    parent_parser.add_argument(
+        '-u', '--username', help="Download content from a user or list of users (name,name2)",type=lambda x: x.strip().split(',')
     )
-    parser.add_argument(
+
+    parent_parser.add_argument(
         '-a', '--all', help='scrape the content of all users', action='store_true')
-    parser.add_argument(
+    parent_parser.add_argument(
         '-d', '--daemon', help='This will run the program in the background and scrape everything from everyone. It will run untill manually killed.', action='store_true'
     )
-    parser.add_argument(
-        '-p', '--purchased', help = 'Download only individually purchased content.', action = 'store_true'
+    parent_parser.add_argument(
+        '-s', '--silent', help = 'Run in silent mode', action = 'store_true',default=False
     )
+    parent_parser.add_argument("-e","--dupe",action="store_true",default=False,help="download previously downloaded")
+    subparsers = parser.add_subparsers(help='select which mode you want to run',dest="command",required=True)
+    post = subparsers.add_parser('posts', help='scrape content from posts',parents=[parent_parser])
+    post.add_argument(
+        '-t', '--type', help = 'which type of posts to scrape',default=None,required=False,type = str.lower,choices=["highlights","all","archived","messages","timeline"]
+    )
+    post.add_argument("-p","--paid",action="store_true",default=False,help="download paid post")
+
+    
+  
+    paid= subparsers.add_parser('paid', help='scrape only paid content',parents=[parent_parser])
+    likes = subparsers.add_parser('like', help='manipulate likes',parents=[parent_parser])
+    likes.add_argument("-t","--action",help="what batch action to take",type = str.lower,choices=["like","unlike"],required=True)
+    edit = subparsers.add_parser('edit', help='edit',parents=[parent_parser])
+    manual = subparsers.add_parser('manual', help='do stuff with prompts',parents=[parent_parser])
+
+
+
+ 
+
+
+
     args = parser.parse_args()
-    if args.edit:
+    if args.command=="edit":
         pass
-    if args.username:
-        usernames = args.username
-        for username in usernames.strip().split(','):
-            download_user(username)
+    elif args.command=="posts":
+        
+        usernames=getselected_usernames(args)
+        process_post(args,usernames)   
+    elif args.command=="paid":
+        run(process_paid)
+    elif args.command=="likes":
+        pass
         sys.exit()
-    if args.all:
-        silent = True
-        silent_run()
-        sys.exit()
-    if args.daemon:
-        daemon()
-    if args.purchased:
-        paid_content = paid.scrape_paid()
-        paid.download_paid(paid_content)
-        sys.exit()
-
-
-
-    try:
-        process_prompts()
-    except KeyboardInterrupt:
-        sys.exit(1)
+    elif args.command=="manual":
+        try:
+            process_prompts(args)
+        except KeyboardInterrupt:
+            sys.exit(1)
 
 
 if __name__ == '__main__':

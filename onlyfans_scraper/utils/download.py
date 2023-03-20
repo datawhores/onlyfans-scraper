@@ -25,79 +25,62 @@ from .config import read_config
 from .dates import convert_date_to_timestamp
 from .separate import separate_by_id
 from ..db import operations
+from .paths import set_directory
 
+config = read_config()['config']
+root= pathlib.Path((config.get('save_location') or pathlib.Path.cwd()))
 
-async def process_urls(headers, username, model_id, urls):
-    if urls:
+async def process_dicts(headers, username, model_id, medialist,forced):
+    if medialist:
         operations.create_database(model_id)
-        media_ids = operations.get_media_ids(model_id)
-        separated_urls = separate_by_id(urls, media_ids)
-
-        config = read_config()['config']
-
-        save_location = config.get('save_location')
-        if save_location:
-            try:
-                dir = pathlib.Path(save_location)
-            except:
-                print(f"Unable to find save location. Using current working directory. ({pathlib.Path.cwd()})")
-        else:
-            dir = pathlib.Path.cwd()
-        try:
-            path = dir / username
-            path.mkdir(exist_ok=True, parents=True)
-        except:
-            print("Error saving to save directory, check the directory and make sure correct permissions have been issued.")
-            sys.exit()
         file_size_limit = config.get('file_size_limit')
 
         # Added pool limit:
         limits = httpx.Limits(max_connections=8, max_keepalive_connections=5)
         async with httpx.AsyncClient(headers=headers, limits=limits, timeout=None) as c:
             add_cookies(c)
-
-            aws = [asyncio.create_task(
-                download(c, path, model_id, file_size_limit, *url)) for url in separated_urls]
-
+            aws=[]
             photo_count = 0
             video_count = 0
             skipped = 0
             total_bytes_downloaded = 0
             data = 0
-
-            desc = 'Progress: ({p_count} photos, {v_count} videos, {skipped} skipped || {data})'
-
-            with tqdm(desc=desc.format(p_count=photo_count, v_count=video_count, skipped=skipped, data=data), total=len(aws), colour='cyan', leave=True) as main_bar:
+            desc = 'Progress: ({p_count} photos, {v_count} videos, {skipped} skipped || {data})'    
+            with tqdm(desc=desc.format(p_count=photo_count, v_count=video_count, skipped=skipped, data=data), total=len(aws), colour='cyan', leave=True) as main_bar:   
+                for ele in medialist:
+                    filename=createfilename(ele[0],username,model_id,ele[1],ele[2],ele[3],ele[4],ele[6])
+                    with set_directory(str(pathlib.Path(root,username,ele[5].capitalize(),ele[3].capitalize()))):
+                        aws.append(asyncio.create_task(download(c,ele[0],filename,pathlib.Path(".").absolute() ,ele[3],model_id, file_size_limit, ele[1],ele[2],forced=False)))
                 for coro in asyncio.as_completed(aws):
-                    try:
-                        media_type, num_bytes_downloaded = await coro
-                    except Exception as e:
-                        media_type = None
-                        num_bytes_downloaded = 0
-                        print(e)
+                        try:
+                            media_type, num_bytes_downloaded = await coro
+                        except Exception as e:
+                            media_type = None
+                            num_bytes_downloaded = 0
+                            print(e)
 
-                    total_bytes_downloaded += num_bytes_downloaded
-                    data = convert_num_bytes(total_bytes_downloaded)
+                        total_bytes_downloaded += num_bytes_downloaded
+                        data = convert_num_bytes(total_bytes_downloaded)
 
-                    if media_type == 'photo':
-                        photo_count += 1
-                        main_bar.set_description(
-                            desc.format(
-                                p_count=photo_count, v_count=video_count, skipped=skipped, data=data), refresh=False)
+                        if media_type == 'photo' or media_type == "gif":
+                            photo_count += 1
+                            main_bar.set_description(
+                                desc.format(
+                                    p_count=photo_count, v_count=video_count, skipped=skipped, data=data), refresh=False)
 
-                    elif media_type == 'video':
-                        video_count += 1
-                        main_bar.set_description(
-                            desc.format(
-                                p_count=photo_count, v_count=video_count, skipped=skipped, data=data), refresh=False)
+                        elif media_type == 'video':
+                            video_count += 1
+                            main_bar.set_description(
+                                desc.format(
+                                    p_count=photo_count, v_count=video_count, skipped=skipped, data=data), refresh=False)
 
-                    elif media_type == 'skipped':
-                        skipped += 1
-                        main_bar.set_description(
-                            desc.format(
-                                p_count=photo_count, v_count=video_count, skipped=skipped, data=data), refresh=False)
+                        elif media_type == 'skipped':
+                            skipped += 1
+                            main_bar.set_description(
+                                desc.format(
+                                    p_count=photo_count, v_count=video_count, skipped=skipped, data=data), refresh=False)
 
-                    main_bar.update()
+                        main_bar.update()
 
 
 def convert_num_bytes(num_bytes: int) -> str:
@@ -110,20 +93,14 @@ def convert_num_bytes(num_bytes: int) -> str:
     return f'{round(num_bytes / 10 ** 6, 2)} MB'
 
 
-async def download(client, path, model_id, file_size_limit,
-                   url, date=None, id_=None, media_type=None):
-    filename = url.split('?', 1)[0].rsplit('/', 1)[-1]
-    path_to_file = path / filename
-    #path_to_file = config.path_to_file
-    #num_bytes_downloaded = 0
-
+async def download(client,url,filename,path,media_type,model_id,file_size_limit,date=None,id_=None,forced=False):
+    path_to_file = pathlib.Path(path,filename)
     async with client.stream('GET', url) as r:
         if not r.is_error:
-            total = int(r.headers['Content-Length'])
-            if file_size_limit:
-                if total > int(file_size_limit):
-                    return 'skipped', 1
-
+            rheaders=r.headers
+            total = int(rheaders['Content-Length'])
+            if file_size_limit and total > int(file_size_limit): 
+                    return 'skipped', 1       
             with tqdm(desc=filename, total=total, unit_scale=True, unit_divisor=1024, unit='B', leave=False) as bar:
                 num_bytes_downloaded = r.num_bytes_downloaded
                 with open(path_to_file, 'wb') as f:
@@ -144,7 +121,7 @@ async def download(client, path, model_id, file_size_limit,
             data = (id_, filename)
             operations.write_from_data(data, model_id)
 
-    return media_type, num_bytes_downloaded
+    return media_type, total
 
 
 def set_time(path, timestamp):
@@ -159,3 +136,5 @@ def get_error_message(content):
         return error_content.get('message', 'No error message available')
     except AttributeError:
         return error_content
+def createfilename(url,username,model_id=None,date=None,id_=None,media_type=None,text=None,count=None):
+    return url.split('.')[-2].split('/')[-1].strip("/,.;!_-@#$%^&*()+\\ ")

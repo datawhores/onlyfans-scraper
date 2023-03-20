@@ -381,7 +381,7 @@ def run_helper(command,*params,**kwparams):
 def getselected_usernames():
     #username list will be retrived once per run
     headers = auth.make_headers(auth.read_auth())
-    if args.username=="!all":
+    if args.username and "!all" in args.username:
         subscribe_count = process_me(headers)
         parsed_subscriptions = get_models(headers, subscribe_count)
         args.username=get_usernames(parsed_subscriptions)

@@ -34,9 +34,8 @@ async def process_dicts(headers, username, model_id, medialist,forced):
     if medialist:
         operations.create_database(model_id)
         file_size_limit = config.get('file_size_limit')
-
-        # Added pool limit:
-        limits = httpx.Limits(max_connections=8, max_keepalive_connections=5)
+        global sem
+        sem = asyncio.Semaphore(8)
         async with httpx.AsyncClient(headers=headers, limits=limits, timeout=None) as c:
             add_cookies(c)
             aws=[]
@@ -95,33 +94,34 @@ def convert_num_bytes(num_bytes: int) -> str:
 
 async def download(client,url,filename,path,media_type,model_id,file_size_limit,date=None,id_=None,forced=False):
     path_to_file = pathlib.Path(path,filename)
-    async with client.stream('GET', url) as r:
-        if not r.is_error:
-            rheaders=r.headers
-            total = int(rheaders['Content-Length'])
-            if file_size_limit and total > int(file_size_limit): 
-                    return 'skipped', 1       
-            with tqdm(desc=filename, total=total, unit_scale=True, unit_divisor=1024, unit='B', leave=False) as bar:
-                num_bytes_downloaded = r.num_bytes_downloaded
-                with open(path_to_file, 'wb') as f:
-                    async for chunk in r.aiter_bytes(chunk_size=1024):
-                        f.write(chunk)
-                        bar.update(
-                            r.num_bytes_downloaded - num_bytes_downloaded)
-                        num_bytes_downloaded = r.num_bytes_downloaded
+    async with sem:  
+        async with client.stream('GET', url) as r:
+            if not r.is_error:
+                rheaders=r.headers
+                total = int(rheaders['Content-Length'])
+                if file_size_limit and total > int(file_size_limit): 
+                        return 'skipped', 1       
+                with tqdm(desc=filename, total=total, unit_scale=True, unit_divisor=1024, unit='B', leave=False) as bar:
+                    num_bytes_downloaded = r.num_bytes_downloaded
+                    with open(path_to_file, 'wb') as f:
+                        async for chunk in r.aiter_bytes(chunk_size=1024):
+                            f.write(chunk)
+                            bar.update(
+                                r.num_bytes_downloaded - num_bytes_downloaded)
+                            num_bytes_downloaded = r.num_bytes_downloaded
 
-        else:
-            r.raise_for_status()
+            else:
+                r.raise_for_status()
 
-    if path_to_file.is_file():
-        if date:
-            set_time(path_to_file, convert_date_to_timestamp(date))
+        if path_to_file.is_file():
+            if date:
+                set_time(path_to_file, convert_date_to_timestamp(date))
 
-        if id_:
-            data = (id_, filename)
-            operations.write_from_data(data, model_id)
+            if id_:
+                data = (id_, filename)
+                operations.write_from_data(data, model_id)
 
-    return media_type, total
+        return media_type, total
 
 
 def set_time(path, timestamp):

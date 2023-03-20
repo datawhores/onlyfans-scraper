@@ -365,7 +365,7 @@ def getselected_usernames():
     elif args.all:
         subscribe_count = process_me(headers)
         parsed_subscriptions = get_models(headers, subscribe_count)
-        args.username=[get_usernames(parsed_subscriptions)]
+        args.username=get_usernames(parsed_subscriptions)
  
     #manually select usernames
     else:

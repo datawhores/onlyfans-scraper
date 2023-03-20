@@ -12,6 +12,7 @@ import math
 import pathlib
 import platform
 import sys
+import shutil
 
 import httpx
 from tqdm.asyncio import tqdm
@@ -36,7 +37,7 @@ async def process_dicts(headers, username, model_id, medialist,forced):
         file_size_limit = config.get('file_size_limit')
         global sem
         sem = asyncio.Semaphore(8)
-        async with httpx.AsyncClient(headers=headers, limits=limits, timeout=None) as c:
+        async with httpx.AsyncClient(headers=headers, timeout=None) as c:
             add_cookies(c)
             aws=[]
             photo_count = 0
@@ -93,7 +94,6 @@ def convert_num_bytes(num_bytes: int) -> str:
 
 
 async def download(client,url,filename,path,media_type,model_id,file_size_limit,date=None,id_=None,forced=False):
-    path_to_file = pathlib.Path(path,filename)
     async with sem:  
         async with client.stream('GET', url) as r:
             if not r.is_error:
@@ -101,27 +101,36 @@ async def download(client,url,filename,path,media_type,model_id,file_size_limit,
                 total = int(rheaders['Content-Length'])
                 if file_size_limit and total > int(file_size_limit): 
                         return 'skipped', 1       
-                with tqdm(desc=filename, total=total, unit_scale=True, unit_divisor=1024, unit='B', leave=False) as bar:
-                    num_bytes_downloaded = r.num_bytes_downloaded
+                content_type = rheaders.get("content-type").split('/')[-1]
+                path_to_file = pathlib.Path(path,filename)
+                with set_directory(pathlib.Path(pathlib.Path(__file__).parents[2],"tempmedia")):
+                    temp=f"{filename}.{content_type}"
+                    pathlib.Path(temp).unlink(missing_ok=True)
                     with open(path_to_file, 'wb') as f:
-                        async for chunk in r.aiter_bytes(chunk_size=1024):
-                            f.write(chunk)
-                            bar.update(
-                                r.num_bytes_downloaded - num_bytes_downloaded)
+                        with tqdm(desc=temp ,total=total, unit_scale=True, unit_divisor=1024, unit='B', leave=False) as bar:
                             num_bytes_downloaded = r.num_bytes_downloaded
-
+                            async for chunk in r.aiter_bytes(chunk_size=1024):
+                                f.write(chunk)
+                                bar.update(
+                                    r.num_bytes_downloaded - num_bytes_downloaded)
+                                num_bytes_downloaded = r.num_bytes_downloaded
+                    if pathlib.Path(temp).exists() and(total-pathlib.Path(temp).stat().st_size<=1000):
+                        shutil.move(temp,path_to_file)
+                        return media_type,total
+                    else:
+                        return 'skipped', 1
             else:
                 r.raise_for_status()
 
-        if path_to_file.is_file():
-            if date:
-                set_time(path_to_file, convert_date_to_timestamp(date))
+            if path_to_file.is_file():
+                if date:
+                    set_time(path_to_file, convert_date_to_timestamp(date))
 
-            if id_:
-                data = (id_, filename)
-                operations.write_from_data(data, model_id)
+                if id_:
+                    data = (id_, filename)
+                    operations.write_from_data(data, model_id)
 
-        return media_type, total
+            return media_type, total
 
 
 def set_time(path, timestamp):

@@ -264,15 +264,13 @@ def process_paid():
     profiles.print_current_profile()
     headers = auth.make_headers(auth.read_auth())
     init.print_sign_status(headers)
-    # all_paid_content = paid.scrape_paid()
-    # usernames=getselected_usernames()
-    usernames=["aroomikimfree"]
+    all_paid_content = paid.scrape_paid()
+    usernames=getselected_usernames()
     for username in usernames:
 
         try:
             model_id = profile.get_id(headers, username)
-            # paid_content=paid.parse_paid(all_paid_content,model_id)
-            paid_content=[('https://cdn2.onlyfans.com/files/6/6c/6c54a41f984df5deab7760c20eb7339f/2160x2880_d88051e076d0ceb7da7733d786e84081.jpg?Tag=2&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6XC9cL2NkbjIub25seWZhbnMuY29tXC9maWxlc1wvNlwvNmNcLzZjNTRhNDFmOTg0ZGY1ZGVhYjc3NjBjMjBlYjczMzlmXC8yMTYweDI4ODBfZDg4MDUxZTA3NmQwY2ViN2RhNzczM2Q3ODZlODQwODEuanBnP1RhZz0yIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNjc5NDk1ODY0fSwiSXBBZGRyZXNzIjp7IkFXUzpTb3VyY2VJcCI6IjIxMy4xNTIuMTYxLjIxOVwvMzIifX19XX0_&Signature=b8g0FUdedPpMIzi42EMSw7oCSjN74Dm6Q9nCr-q6MNTqmAPiRAcPJpg9wCIzK00b8kV3QzLD613PFYIVwLdK9nWhf1oiAlO~USIK~MbZzb~c2PO-rRHZWMRr2AmTJtPjQTXtTI0DYhHQG-MPCCi5Gg1O1h6O3-UZWx6ev7kS9qc-KmVArreqkZuWhkDJDs3hcsC~x5C8G3IakIrWaneFEckzpW4QfrsYv8hFSBqR-H1kmrPrJSSB1XV8f~Elj6ygZYHYemox7TRaZJT~dyOBb~a79T9XeSsv5ZFSwTaEzYAtEAnLSjKDsofg-RgGXxSMxsgZ5dMZ3UeRZztYVFbQsQ__&Key-Pair-Id=APKAUSX4CWPPATFK2DGD', '2023-02-04T23:28:41+00:00', 2764940809, 'photo', '😈Stranger Fuck😈 I ran into a stranger that recognizes me! I was so happy I decide to make his dream cum true 🤩 after sucking his cock I start to ride his huge cock and have it stretch out my tight little pussy!😲💦then I let him cum all over my tits🥵', 'post', 1), ('https://cdn2.onlyfans.com/files/f/f0/f0263fcaf2f554647353df78579855c9/0has86xo3frjzlct4atud_source.mp4?Tag=2&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6XC9cL2NkbjIub25seWZhbnMuY29tXC9maWxlc1wvZlwvZjBcL2YwMjYzZmNhZjJmNTU0NjQ3MzUzZGY3ODU3OTg1NWM5XC8waGFzODZ4bzNmcmp6bGN0NGF0dWRfc291cmNlLm1wND9UYWc9MiIsIkNvbmRpdGlvbiI6eyJEYXRlTGVzc1RoYW4iOnsiQVdTOkVwb2NoVGltZSI6MTY3OTQ5NTg2NH0sIklwQWRkcmVzcyI6eyJBV1M6U291cmNlSXAiOiIyMTMuMTUyLjE2MS4yMTlcLzMyIn19fV19&Signature=Q6qetS3ptL6uhmVzXpdM4MwoHLlXelYbvKnOQT-aDsysv9~ud9giEJHZ8QRdSakr38b-5Yko1XMSivLwTEm9n1uOZwBiSZwd89jUBVphkzIwawmsrPMER-piMywhccTFySaqR8wNk5lutA2zbIUzk7C2OFsLCxMGPkNlWmSkOLAFQud-R2DEj3qRK65ikMPRJCyXSGxfS9mFhkm9OInY~9HU8Is8vKtRpcTgOIlLG4KPLWqbdCh~xZXrFNRJOYQfP5AnHrRiTBES2HM9M9lDk~QtQQzDaLuhx~eRlG97cLhTP8qzCKbnlSM6QoBqoqfUl0ZmKGQeuUo~HMq-mSw~XQ__&Key-Pair-Id=APKAUSX4CWPPATFK2DGD', '2023-02-04T22:47:36+00:00', 2764909965, 'video', '😈Stranger Fuck😈 I ran into a stranger that recognizes me! I was so happy I decide to make his dream cum true 🤩 after sucking his cock I start to ride his huge cock and have it stretch out my tight little pussy!😲💦then I let him cum all over my tits🥵', 'post', 2), ('https://cdn2.onlyfans.com/files/8/89/89b80752b9f8bdc7aa9526e30582afb7/2160x2880_e3f7c320dd427c69b35cb8150268eb0b.jpg?Tag=2&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6XC9cL2NkbjIub25seWZhbnMuY29tXC9maWxlc1wvOFwvODlcLzg5YjgwNzUyYjlmOGJkYzdhYTk1MjZlMzA1ODJhZmI3XC8yMTYweDI4ODBfZTNmN2MzMjBkZDQyN2M2OWIzNWNiODE1MDI2OGViMGIuanBnP1RhZz0yIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNjc5NDk1ODY0fSwiSXBBZGRyZXNzIjp7IkFXUzpTb3VyY2VJcCI6IjIxMy4xNTIuMTYxLjIxOVwvMzIifX19XX0_&Signature=FRkeP0mX4czKm1vRXPdr3w3q7Xky9IrMf5D-QDYrSCi9fPAbB9mCwIGBCSnCKlDRYCYGO8bVHIFh1~WDIIrqYaRfXCH~MssLWell8wIncI~1kwWB9rm333M4Ve-5eBjASrib3qnsrnnWAq5-m9-p9te-YxA12kdmfxeSDDhEDdsrbueYZ53nhU7PB3WOXr9014lYUKrW5j-f8zrZbWJiVekDr4HHZg8lMtyr6oiBX7Tmdcb04Hd2CZnPt99pqwHC4Wk7zmkOZrJp6Cy4~Pn9sn-5M5kzOiYF0XyI1NRwZlpjVSYdzP8zdG9iRvTNDfe6-kSq27RANGx2WvhnoltZjg__&Key-Pair-Id=APKAUSX4CWPPATFK2DGD', '2023-02-04T17:03:00+00:00', 2764649496, 'photo', 'NEW B/G CLIP I gave a stranger a massage but the session took a naughty turn when I started teasing him for something in return 😚 I let him fuck me raw in multiple positions💦 He cummed inside me🥺 I hope i’m not pregnant!! \U0001fae3', 'post', 1), ('https://cdn2.onlyfans.com/files/2/22/227fb22e920ceb3882d319d7dfc7b420/0hary84oy6rijhkdg9gv3_source.mp4?Tag=2&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6XC9cL2NkbjIub25seWZhbnMuY29tXC9maWxlc1wvMlwvMjJcLzIyN2ZiMjJlOTIwY2ViMzg4MmQzMTlkN2RmYzdiNDIwXC8waGFyeTg0b3k2cmlqaGtkZzlndjNfc291cmNlLm1wND9UYWc9MiIsIkNvbmRpdGlvbiI6eyJEYXRlTGVzc1RoYW4iOnsiQVdTOkVwb2NoVGltZSI6MTY3OTQ5NTg2NH0sIklwQWRkcmVzcyI6eyJBV1M6U291cmNlSXAiOiIyMTMuMTUyLjE2MS4yMTlcLzMyIn19fV19&Signature=EKujJ8kl-mys6W9Qz2BXp7e58MxIzjfQn~qKjlL-oSjCAyh49SRNKHW8m5CA80afasm9E97Zw-vu~0htglGISs6q13~69mqe32dXvdC0W1Y9z-I0yzOdB-xR5WKmI2TEIMbw~uNsfl4k9Zgp4YJLAlNmwVon1YnhR5Iiy84YsreG1lpWj3KAlk6UTpAaG0JZvYTCcPWw~wgyFSy89E28a71vDm3uuxybJsGEVSB0N6xMPXf~C-Gzxb49IRuapMKDzB~2UcQ2cOiDmeUegX-rSIeoOBQ-HF3QFPJaJXqi7mii6nI0j1gGJNobdntlLV57MoBIhbz0xp9OSUFgJJAL3Q__&Key-Pair-Id=APKAUSX4CWPPATFK2DGD', '2023-02-04T17:03:00+00:00', 2764649497, 'video', 'NEW B/G CLIP I gave a stranger a massage but the session took a naughty turn when I started teasing him for something in return 😚 I let him fuck me raw in multiple positions💦 He cummed inside me🥺 I hope i’m not pregnant!! \U0001fae3', 'post', 2)]
+            paid_content=paid.parse_paid(all_paid_content,model_id)
             profile.print_paid_info(paid_content,username)
             asyncio.run(paid.process_dicts(
             headers,
@@ -414,10 +412,10 @@ def main():
     global args
     if platform.system == 'Windows':
         os.system('color')
-    # try:
-    #     webbrowser.open(donateEP)
-    # except:
-    #     pass
+    try:
+        webbrowser.open(donateEP)
+    except:
+        pass
 
 
     parser = argparse.ArgumentParser()

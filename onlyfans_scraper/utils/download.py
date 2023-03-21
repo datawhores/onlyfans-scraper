@@ -34,6 +34,11 @@ root= pathlib.Path((config.get('save_location') or pathlib.Path.cwd()))
 async def process_dicts(headers, username, model_id, medialist,forced):
     if medialist:
         operations.create_database(model_id)
+        if not forced:
+            media_ids = operations.get_media_ids(model_id)
+            medialist = separate_by_id(medialist, media_ids)
+
+
         file_size_limit = config.get('file_size_limit')
         global sem
         sem = asyncio.Semaphore(8)

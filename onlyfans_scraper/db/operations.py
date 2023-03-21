@@ -69,6 +69,7 @@ def read_foreign_database(path) -> list:
 
 def write_from_foreign_database(results: list, model_id):
     profile = profiles.get_current_profile()
+    
 
     database_path = pathlib.Path.home() / configPath / profile / databaseFile
 

@@ -37,6 +37,7 @@ async def process_dicts(headers, username, model_id, medialist,forced):
         file_size_limit = config.get('file_size_limit')
         global sem
         sem = asyncio.Semaphore(8)
+        # separated_urls = separate_by_id(urls, media_ids)
         async with httpx.AsyncClient(headers=headers, timeout=None) as c:
             add_cookies(c)
             aws=[]
@@ -118,21 +119,17 @@ async def download(client,url,filename,path,media_type,model_id,file_size_limit,
                     
                     if pathlib.Path(temp).exists() and(total-pathlib.Path(temp).stat().st_size<=1000):
                         shutil.move(temp,path_to_file)
+                        if date:
+                            set_time(path_to_file, convert_date_to_timestamp(date))
+
+                        if id_:
+                            data = (id_, filename)
+                            operations.write_from_data(data, model_id)
                         return media_type,total
                     else:
                         return 'skipped', 1
             else:
                 r.raise_for_status()
-
-            if path_to_file.is_file():
-                if date:
-                    set_time(path_to_file, convert_date_to_timestamp(date))
-
-                if id_:
-                    data = (id_, filename)
-                    operations.write_from_data(data, model_id)
-
-            return media_type, total
 
 
 def set_time(path, timestamp):

@@ -18,11 +18,11 @@ from ..utils import auth
 import httpx
 import pathlib
 from ..utils.config import read_config
-from ..utils.paths import set_directory,createDir
-from hashlib import md5
+from ..utils.paths import set_directory
 import sqlite3 as sql
 from tqdm import tqdm
 from ..db import operations
+from ..utils.separate import separate_by_id
 
 config = read_config()['config']
 paid_content_list_name = 'list'
@@ -52,7 +52,6 @@ root= pathlib.Path((config.get('save_location') or pathlib.Path.cwd()))
 #     cursor.execute("""INSERT INTO hashes(hash,file_name) VALUES(?,?)""",(code.hexdigest(),urlbase))
 #     db.commit()
 #     return True
-
 
 
 
@@ -96,9 +95,11 @@ def parse_paid(all_paid,model_id):
     return media_to_download
 async def process_dicts(headers,username,model_id,medialist,forced=False):
  """Takes a list of purchased content and downloads it."""
- print(f"Username: {username}")
  if medialist:
         operations.create_paid_database(model_id)
+        if not forced:
+            media_ids = operations.get_paid_media_ids(model_id)
+            medialist = separate_by_id(medialist, media_ids)
         file_size_limit = config.get('file_size_limit')
         global sem
         sem = asyncio.Semaphore(8)
@@ -116,7 +117,7 @@ async def process_dicts(headers,username,model_id,medialist,forced=False):
                 for ele in medialist:
                     filename=createfilename(ele[0],username,model_id,ele[1],ele[2],ele[3],ele[4],ele[6])
                     with set_directory(pathlib.Path(root,username, 'Paid',ele[3].capitalize())):
-                        aws.append(asyncio.create_task(download_paid(c,ele[0],filename,pathlib.Path(".").absolute(),ele[3],model_id, file_size_limit
+                        aws.append(asyncio.create_task(download_paid(c,ele[0],filename,pathlib.Path(".").absolute(),ele[3],model_id, file_size_limit,ele[2]
                         ,forced=forced)))
                 for coro in asyncio.as_completed(aws):
                         try:
@@ -151,15 +152,13 @@ async def process_dicts(headers,username,model_id,medialist,forced=False):
 
 
                        
-async def download_paid(client,url,filename,path,media_type,model_id,file_size_limit,forced=False):  
+async def download_paid(client,url,filename,path,media_type,model_id,file_size_limit,_id,forced=False):  
     async with sem:  
         async with client.stream('GET', url) as r:
             if not r.is_error:            
                 rheaders=r.headers
                 total = int(rheaders["Content-Length"])
                 if file_size_limit and total>int(file_size_limit):
-                    return 'skipped', 1
-                if not (add_to_db(geturlbase(url)) or forced):
                     return 'skipped', 1
                 content_type = rheaders.get("content-type").split('/')[-1]
                 path_to_file = pathlib.Path(path,f"{filename}.{content_type}")
@@ -175,6 +174,8 @@ async def download_paid(client,url,filename,path,media_type,model_id,file_size_l
                                     num_bytes_downloaded = r.num_bytes_downloaded
                     if pathlib.Path(temp).exists() and(total-pathlib.Path(temp).stat().st_size<=1000):
                         shutil.move(temp,path_to_file)
+                        if _id:
+                            operations.paid_write_from_data(_id,model_id)
                         return media_type,total
                     else:
                         return 'skipped', 1

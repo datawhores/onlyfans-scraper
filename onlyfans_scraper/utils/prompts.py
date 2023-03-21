@@ -329,11 +329,11 @@ def reset_username_prompt() -> bool:
     return answer[name]
 def model_selector(models) -> bool:
     questions = [
-    {"type": "checkbox", "message": "Which models do you want to scrape:", "name": "Select Model"
+    {"type": "checkbox", "message": "Which models do you want to scrape:"
       ,"validate":(lambda result: len(result)> 0),
-      "invalid_message":"Input cannot be empty","instruction":"\nPress Ctrl -R toggles all choices\nSpace Bar toggles a single choice\nPress Enter When Done","choices":list(map(lambda x:Choice(x,name=x[0]),sorted(models,key=lambda x:x[0])))}
+      "invalid_message":"Input cannot be empty","instruction":"\nPress Ctrl -R toggles all choices\nSpace Bar toggles a single choice\nPress Enter When Done","choices":list(map(lambda x:Choice(x[0],name=f"{x[0]} {x[2]}"),sorted(models,key=lambda x:x[0])))}
 ]
 
-    return prompt(questions)
+    return prompt(questions)[0]
 
 

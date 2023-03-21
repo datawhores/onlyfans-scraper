@@ -74,3 +74,15 @@ def get_id(headers, username):
         if not r.is_error:
             return r.json()['id']
         r.raise_for_status()
+
+def print_paid_info(paid_content,username):
+    print(
+f"""
+Username: {username}
+- paid content {len(paid_content)}
+ -- photos {len(list(filter(lambda x:x[3]=="photo",paid_content)))}
+ -- videos {len(list(filter(lambda x:x[3]=="video",paid_content)))}
+ -- audios {len(list(filter(lambda x:x[3]=="audio",paid_content)))}
+"""
+)
+        

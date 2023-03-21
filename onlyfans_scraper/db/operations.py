@@ -12,6 +12,7 @@ import glob
 import pathlib
 import sqlite3
 from itertools import chain
+from hashlib import md5
 
 from ..constants import configPath, databaseFile
 from ..utils import separate, profiles
@@ -117,9 +118,37 @@ def create_paid_database(model_id, path=None):
         with contextlib.closing(conn.cursor()) as cur:
             try:
                 model_sql = f"""
-                CREATE TABLE IF NOT EXISTS hashes(id integer PRIMARY KEY, hash text, file_name text)
-                );"""
+                CREATE TABLE IF NOT EXISTS hashes (id integer PRIMARY KEY, hash int);"""
                 cur.execute(model_sql)
             except sqlite3.OperationalError:
                 pass
 
+def get_paid_media_ids(model_id,path=None) -> list:
+    profile = profiles.get_current_profile()
+
+    database_path = path or pathlib.Path.home() / configPath / profile /"paid"/f"{model_id}.db"
+
+
+    with contextlib.closing(sqlite3.connect(database_path,check_same_thread=False)) as conn:
+        with contextlib.closing(conn.cursor()) as cur:
+            media_ids_sql = f"""SELECT hash FROM 'hashes'"""
+            cur.execute(media_ids_sql)
+            media_ids = cur.fetchall()
+
+    # A list of single elements and not iterables:
+    return list(chain.from_iterable(media_ids))
+
+def paid_write_from_data(_id: tuple, model_id,path=None):
+    profile = profiles.get_current_profile()
+
+    database_path = path or pathlib.Path.home() / configPath / profile /"paid"/f"{model_id}.db"
+
+    with contextlib.closing(sqlite3.connect(database_path,check_same_thread=False)) as conn:
+        with contextlib.closing(conn.cursor()) as cur:
+            model_insert_sql = f"""
+            INSERT INTO 'hashes' (
+                hash
+            )
+            VALUES (?);"""
+            cur.execute(model_insert_sql, (_id,))
+            conn.commit()

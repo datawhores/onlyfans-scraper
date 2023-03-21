@@ -108,7 +108,7 @@ async def download(client,url,filename,path,media_type,model_id,file_size_limit,
                 if file_size_limit and total > int(file_size_limit): 
                         return 'skipped', 1       
                 content_type = rheaders.get("content-type").split('/')[-1]
-                path_to_file = pathlib.Path(path,filename)
+                path_to_file = pathlib.Path(path,f"{filename}.{content_type}")
                 with set_directory(pathlib.Path(pathlib.Path(__file__).parents[2],"tempmedia")):
                     temp=f"{filename}.{content_type}"
                     pathlib.Path(temp).unlink(missing_ok=True)

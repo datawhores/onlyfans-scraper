@@ -22,6 +22,8 @@ from ..utils.paths import set_directory,createDir
 from hashlib import md5
 import sqlite3 as sql
 from tqdm import tqdm
+from ..db import operations
+
 config = read_config()['config']
 paid_content_list_name = 'list'
 
@@ -29,29 +31,27 @@ paid_content_list_name = 'list'
 
 
 root= pathlib.Path((config.get('save_location') or pathlib.Path.cwd()))
-createDir(root)
-#  SQL SETUP
-
-db = sql.connect(pathlib.Path(root, 'paid.db'))
-cursor = db.cursor()
-
-create_table_command = "CREATE TABLE IF NOT EXISTS hashes(id integer PRIMARY KEY, hash text, file_name text)"
 
 
 
-def add_to_db(urlbase):
-    code=md5(urlbase.encode())
 
-    """Returns True if hash was not in the database and file can continue."""
-    cursor.execute(create_table_command)
-    db.commit()
-    cursor.execute(f"SELECT * FROM hashes WHERE hash='{code.hexdigest()}'")
-    results = cursor.fetchall()
-    if len(results) > 0:
-        return False
-    cursor.execute("""INSERT INTO hashes(hash,file_name) VALUES(?,?)""",(code.hexdigest(),urlbase))
-    db.commit()
-    return True
+
+
+
+
+# def add_to_db(urlbase):
+#     code=md5(urlbase.encode())
+
+#     """Returns True if hash was not in the database and file can continue."""
+    
+#     db.commit()
+#     cursor.execute(f"SELECT * FROM hashes WHERE hash='{code.hexdigest()}'")
+#     results = cursor.fetchall()
+#     if len(results) > 0:
+#         return False
+#     cursor.execute("""INSERT INTO hashes(hash,file_name) VALUES(?,?)""",(code.hexdigest(),urlbase))
+#     db.commit()
+#     return True
 
 
 
@@ -96,7 +96,9 @@ def parse_paid(all_paid,model_id):
     return media_to_download
 async def process_dicts(headers,username,model_id,medialist,forced=False):
  """Takes a list of purchased content and downloads it."""
+ print(f"Username: {username}")
  if medialist:
+        operations.create_paid_database(model_id)
         file_size_limit = config.get('file_size_limit')
         global sem
         sem = asyncio.Semaphore(8)

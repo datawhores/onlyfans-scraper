@@ -108,3 +108,18 @@ def get_media_ids(model_id) -> list:
 
     # A list of single elements and not iterables:
     return list(chain.from_iterable(media_ids))
+
+def create_paid_database(model_id, path=None):
+    profile = profiles.get_current_profile()
+    path = path or pathlib.Path.home() / configPath / profile /"paid"/f"{model_id}.db"
+    pathlib.Path(path).parent.mkdir(exist_ok=True,parents=True)
+    with contextlib.closing(sqlite3.connect(path,check_same_thread=False)) as conn:
+        with contextlib.closing(conn.cursor()) as cur:
+            try:
+                model_sql = f"""
+                CREATE TABLE IF NOT EXISTS hashes(id integer PRIMARY KEY, hash text, file_name text)
+                );"""
+                cur.execute(model_sql)
+            except sqlite3.OperationalError:
+                pass
+

@@ -28,6 +28,7 @@ def read_auth():
     p = pathlib.Path.home() / configPath / profile
     if not p.is_dir():
         p.mkdir(parents=True, exist_ok=True)
+    
 
     while True:
         try:

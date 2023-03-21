@@ -23,6 +23,7 @@ import threading
 import queue
 import functools
 from itertools import chain
+import re
 
 from .constants import donateEP
 from .api import init, highlights, me, messages, posts, profile, subscriptions, paid
@@ -160,21 +161,14 @@ def get_model(parsed_subscriptions: list) -> tuple:
     Prints user's subscriptions to console and accepts input from user corresponding 
     to the model(s) whose content they would like to scrape.
     """
-    subscriptions.print_subscriptions(parsed_subscriptions)
+    return prompts.model_selector(parsed_subscriptions)
 
-    print('\nEnter the numbers of the models you want\nValid inputs include single numbers [1] or ranges [1-20]\nUse commas to seperate inputs')
-    while True:
-        try:
-            return list(map(lambda x:parsed_subscriptions[x - 1][0],get_model_inputsplit(input('> '))))
-        except ValueError:
-            print("Incorrect value. Please enter an actual number.")
-        except IndexError:
-            print("Value out of range. Please pick a number that's in range")
+  
 def get_model_inputsplit(commaString):
     def hyphenRange(hyphenString):
         x = [int(x) for x in hyphenString.split('-')]
         return range(x[0], x[-1]+1)
-    return chain(*[hyphenRange(r) for r in commaString.split(',')])
+    return chain(*[hyphenRange(r) for r in list(filter(lambda x:x.isdigit(),re.split(',| ',commaString)))])
 
 
 def get_models(headers, subscribe_count) -> list:
@@ -276,6 +270,7 @@ def process_paid():
         try:
             model_id = profile.get_id(headers, username)
             paid_content=paid.parse_paid(all_paid_content,model_id)
+            f"Username: {username}\n  -Paid Content:{len(paid_content)}"
             asyncio.run(paid.process_dicts(
             headers,
             username,
@@ -435,19 +430,19 @@ def main():
         '-d', '--daemon', help='run script in the background\nSet value to minimum minutes between script runs\nOverdue runs will run as soon as previous run finishes', type=int,default=None
     )
     parser.add_argument(
-        '-s', '--silent', help = 'Run in silent mode', action = 'store_true',default=False
+        '-s', '--silent', help = 'mute output', action = 'store_true',default=False
     )
-    parser.add_argument("-e","--dupe",action="store_true",default=False,help="download previously downloaded")
+    parser.add_argument("-e","--dupe",action="store_true",default=False,help="Bypass the dupe check and redownload all files")
     parser.add_argument(
-        '-o', '--posts', help = 'scrape all posts with this type',default=None,required=False,type = str.lower,choices=["highlights","all","archived","messages","timeline"]
+        '-o', '--posts', help = 'Download content from a models wall',default=None,required=False,type = str.lower,choices=["highlights","all","archived","messages","timeline"]
     )
-    parser.add_argument("-p","--paid",action="store_true",default=False,help="download paid post")
+    parser.add_argument("-p","--purchased",action="store_true",default=False,help="Download individually purchased content")
     parser.add_argument("-a","--action",default=None,help="perform like or unlike action on each post",choices=["like","unlike"])
 
    
    
     args = parser.parse_args()
-    if len(list(filter(lambda x:x!=None and x!=False,[args.action,args.paid,args.posts])))==0:
+    if len(list(filter(lambda x:x!=None and x!=False,[args.action,args.purchased,args.posts])))==0:
         process_prompts()
         sys.exit(0)
     
@@ -456,7 +451,7 @@ def main():
 
     if args.posts: 
         run(process_post)        
-    if args.paid:
+    if args.purchased:
         run(process_paid)
     if args.action=="like":
         run(process_like)

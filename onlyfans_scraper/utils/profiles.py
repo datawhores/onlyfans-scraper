@@ -90,6 +90,8 @@ def create_profile(path, dir_name: str):
 
     if not dir_path.is_dir():
         dir_path.mkdir(parents=True, exist_ok=False)
+        pathlib()
+    
 
     print(f'\033[32mSuccessfully created\033[0m {dir_name}')
 
